@@ -190,45 +190,147 @@ void printParaviewSnapshot() {
 #define MAKE_BUFFER(name) static auto* name = new double[NumberOfBodies]();
 #define ZERO_BUFFER(name) std::memset(name, 0, sizeof(double)*NumberOfBodies);
 
-void updateBody() {
-    maxV = 0.0;
-    minDx = std::numeric_limits<double>::max();
-
+inline void computeAccelerations(double** pos, double aX[], double aY[], double aZ[]) {
     MAKE_BUFFER(forceX); MAKE_BUFFER(forceY); MAKE_BUFFER(forceZ);
-    // forceX = force along x direction
-    // forceY = force along y direction
-    // forceZ = force along z direction
 
-    forceX[0] = 0.0;
-    forceY[0] = 0.0;
-    forceZ[0] = 0.0;
+    for (int ii = 0; ii < NumberOfBodies; ++ii) {
+        for (int j = ii + 1; j < NumberOfBodies; ++j) {
+            const double dx = pos[j][0] - pos[ii][0], dy = pos[j][1] - pos[ii][1], dz = pos[j][2] - pos[ii][2];
+            const double distSqrd = dx * dx + dy * dy + dz * dz, distance = sqrt(distSqrd);
 
-    for (int i = 1; i < NumberOfBodies; i++) {
-        const double dx = x[i][0]-x[0][0], dy = x[i][1]-x[0][1], dz = x[i][2]-x[0][2];
-        const double distSqrd = dx*dx + dy*dy + dz*dz, distance = sqrt(distSqrd);
+            const double k = mass[ii] * mass[j] / (distSqrd * distance);
+            const double Fx = k * dx, Fy = k * dy, Fz = k * dz;
 
-        const double k = mass[i]*mass[0] / (distSqrd * distance);
+            if (pos == x) {
+                minDx = std::min(minDx, distance);
+            }
 
-        forceX[0] += dx*k;
-        forceY[0] += dy*k;
-        forceZ[0] += dz*k;
+            forceX[ii] += Fx;
+            forceY[ii] += Fy;
+            forceZ[ii] += Fz;
 
-        minDx = std::min(minDx, distance);
+            forceX[j] -= Fx;
+            forceY[j] -= Fy;
+            forceZ[j] -= Fz;
+
+            minDx = std::min(minDx, distance);
+        }
     }
 
-    x[0][0] = x[0][0] + timeStepSize * v[0][0];
-    x[0][1] = x[0][1] + timeStepSize * v[0][1];
-    x[0][2] = x[0][2] + timeStepSize * v[0][2];
-
-    v[0][0] = v[0][0] + timeStepSize * forceX[0] / mass[0];
-    v[0][1] = v[0][1] + timeStepSize * forceY[0] / mass[0];
-    v[0][2] = v[0][2] + timeStepSize * forceZ[0] / mass[0];
-
-    maxV = std::sqrt(v[0][0] * v[0][0] + v[0][1] * v[0][1] + v[0][2] * v[0][2]);
-
-    t += timeStepSize;
+    for (int ii = 0; ii < NumberOfBodies; ++ii) {
+        aX[ii] = forceX[ii]/mass[ii];
+        aY[ii] = forceY[ii]/mass[ii];
+        aZ[ii] = forceZ[ii]/mass[ii];
+    }
 
     ZERO_BUFFER(forceX); ZERO_BUFFER(forceY); ZERO_BUFFER(forceZ);
+}
+
+void updateBody() {
+    MAKE_BUFFER(lastVx); MAKE_BUFFER(lastVy); MAKE_BUFFER(lastVz);
+
+    MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
+    MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
+    MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
+    MAKE_BUFFER(k4X); MAKE_BUFFER(k4Y); MAKE_BUFFER(k4Z);
+
+    // Used to store temporary projected world.
+    static auto** tmpx = new double*[NumberOfBodies]();
+    if (t == 0) {
+        for (int ii = 0; ii < NumberOfBodies; ++ii) {
+            tmpx[ii] = new double[3]();
+        }
+    }
+
+    // Are we likely to be seeing a collision in the next couple of collisions?
+    const auto shouldBeCareful = minDx/maxV <= 5.0 * timeStepSize;
+
+    maxV = 0;
+    minDx = std::numeric_limits<double>::max();
+
+    if (shouldBeCareful) {
+        // Use h/2 for scheme. Velocity: Range Kutta. Position: Adams-Bashford
+        std::cout << "Be careful" << std::endl;
+        double dt = timeStepSize/2;
+
+        computeAccelerations(x, k1X, k1Y, k1Z);
+
+        // Project current state ahead h/2
+        for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+            tmpx[ii][0] = x[ii][0] + dt/2 * (v[ii][0] + k1X[ii]);
+            tmpx[ii][1] = x[ii][1] + dt/2 * (v[ii][1] + k1Y[ii]);
+            tmpx[ii][2] = x[ii][2] + dt/2 * (v[ii][2] + k1Z[ii]);
+        }
+
+        computeAccelerations(tmpx, k2X, k2Y, k2Z);
+
+        for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+            tmpx[ii][0] = x[ii][0] + dt/2 * (v[ii][0] + k2X[ii]);
+            tmpx[ii][1] = x[ii][1] + dt/2 * (v[ii][1] + k2Y[ii]);
+            tmpx[ii][2] = x[ii][2] + dt/2 * (v[ii][2] + k2Z[ii]);
+        }
+
+        computeAccelerations(tmpx, k3X, k3Y, k3Z);
+
+        for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+            tmpx[ii][0] = x[ii][0] + dt * (v[ii][0] + k3X[ii]);
+            tmpx[ii][1] = x[ii][1] + dt * (v[ii][1] + k3Y[ii]);
+            tmpx[ii][2] = x[ii][2] + dt * (v[ii][2] + k3Z[ii]);
+        }
+
+        computeAccelerations(tmpx, k4X, k4Y, k4Z);
+
+        for (auto ii = 0 ; ii < NumberOfBodies; ++ii) {
+            v[ii][0] += dt / 6.0 * (k1X[ii] + 2.0*k2X[ii] + 2.0*k3X[ii] + k4X[ii]);
+            v[ii][1] += dt / 6.0 * (k1Y[ii] + 2.0*k2Y[ii] + 2.0*k3Y[ii] + k4Y[ii]);
+            v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0*k2Z[ii] + 2.0*k3Z[ii] + k4Z[ii]);
+
+            maxV = std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+
+            x[ii][0] += dt*v[ii][0];
+            x[ii][1] += dt*v[ii][1];
+            x[ii][2] += dt*v[ii][2];
+
+            lastVx[ii] = v[ii][0];
+            lastVy[ii] = v[ii][1];
+            lastVz[ii] = v[ii][2];
+        }
+
+        t += dt;
+    } else {
+        // Use normal timeStepSize. Velocity: Adams-Bashford, Position: Explicit Euler
+        MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
+
+        computeAccelerations(x, k1X, k1Y, k1Z);
+
+        for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+            if (t > 0) {
+                v[ii][0] += timeStepSize*(1.5*k1X[ii] - 0.5*lastAx[ii]);
+                v[ii][1] += timeStepSize*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
+                v[ii][2] += timeStepSize*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
+            } else {
+                v[ii][0] += timeStepSize*k1X[ii];
+                v[ii][1] += timeStepSize*k1Y[ii];
+                v[ii][2] += timeStepSize*k1Z[ii];
+            }
+
+            maxV = std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+
+            x[ii][0] += timeStepSize*v[ii][0];
+            x[ii][1] += timeStepSize*v[ii][1];
+            x[ii][2] += timeStepSize*v[ii][2];
+
+            lastAx[ii] = k1X[ii];
+            lastAy[ii] = k1Y[ii];
+            lastAz[ii] = k1Z[ii];
+
+            lastVx[ii] = v[ii][0];
+            lastVy[ii] = v[ii][1];
+            lastVz[ii] = v[ii][2];
+        }
+
+        t += timeStepSize;
+    }
 }
 
 
