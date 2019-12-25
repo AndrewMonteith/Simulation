@@ -243,15 +243,14 @@ void updateBody() {
     }
 
     // Are we likely to be seeing a collision in the next couple of collisions?
-    const auto shouldBeCareful = minDx/maxV <= 5.0 * timeStepSize;
+    const auto shouldBeCareful = minDx/maxV <= 10.0 * timeStepSize;
 
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
 
     if (shouldBeCareful) {
         // Use h/2 for scheme. Velocity: Range Kutta. Position: Adams-Bashford
-        std::cout << "Be careful" << std::endl;
-        double dt = timeStepSize/2;
+        double dt = timeStepSize/15;
 
         computeAccelerations(x, k1X, k1Y, k1Z);
 
