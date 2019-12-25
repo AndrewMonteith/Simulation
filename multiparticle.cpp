@@ -248,6 +248,7 @@ void updateBody() {
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
 
+    // ----- Update Particle Positions and Velocity
     if (shouldBeCareful) {
         // Use h/2 for scheme. Velocity: Range Kutta. Position: Adams-Bashford
         double dt = timeStepSize/15;
@@ -330,6 +331,47 @@ void updateBody() {
 
         t += timeStepSize;
     }
+
+
+    // --- See if any particles have collided.
+    const double collisionDistanceThreshold = 0.01 * 0.01;
+
+    // Check if an particles are inside of each other.
+    for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+        for (auto j = ii + 1; j < NumberOfBodies; ++j) {
+            const double dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
+            const double distSqrd = dx * dx + dy * dy + dz * dz;
+
+            if (distSqrd <= collisionDistanceThreshold) {
+                // Particles ii and j have collided.
+                // We merge particles ii and j into the slot ii in x, v, mass
+
+                const double M = mass[ii] + mass[j];
+
+                for (int k = 0; k < 3; ++k) {
+                    v[ii][k] = (mass[ii] * v[ii][k] + mass[j] * v[j][k]) / M;
+                    x[ii][k] = 0.5d * (x[ii][k] + x[j][k]);
+                }
+
+                mass[ii] = M;
+
+                maxV = std::max(maxV, sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
+
+                if (j != NumberOfBodies - 1) {
+                    // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
+                    std::swap(mass[j], mass[NumberOfBodies - 1]);
+                    std::swap(v[j], v[NumberOfBodies - 1]);
+                    std::swap(x[j], x[NumberOfBodies - 1]);
+                }
+
+                lastVx[j] = v[j][0];
+                lastVy[j] = v[j][1];
+                lastVz[j] = v[j][2];
+
+                NumberOfBodies -= 1;
+            }
+        }
+    }
 }
 
 
@@ -381,7 +423,7 @@ int main(int argc, char **argv) {
     }
 
     int timeStepCounter = 0;
-    while (t <= tFinal) {
+    while (t <= tFinal && NumberOfBodies > 1) {
         updateBody();
         timeStepCounter++;
         if (t >= tPlot) {
@@ -397,6 +439,8 @@ int main(int argc, char **argv) {
             tPlot += tPlotDelta;
         }
     }
+
+    printParaviewSnapshot();
 
     closeParaviewVideoFile();
 
