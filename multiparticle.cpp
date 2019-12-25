@@ -19,6 +19,7 @@
 #include <math.h>
 #include <limits>
 #include <iomanip>
+#include <cstring>
 
 
 double t = 0;
@@ -185,20 +186,22 @@ void printParaviewSnapshot() {
 /**
  * This is the only operation you are allowed to change in the assignment.
  */
+
+#define MAKE_BUFFER(name) static auto* name = new double[NumberOfBodies]();
+#define ZERO_BUFFER(name) std::memset(name, 0, sizeof(double)*NumberOfBodies);
+
 void updateBody() {
     maxV = 0.0;
     minDx = std::numeric_limits<double>::max();
 
-    // force0 = force along x direction
-    // force1 = force along y direction
-    // force2 = force along z direction
-    double *force0 = new double[NumberOfBodies];
-    double *force1 = new double[NumberOfBodies];
-    double *force2 = new double[NumberOfBodies];
+    MAKE_BUFFER(forceX); MAKE_BUFFER(forceY); MAKE_BUFFER(forceZ);
+    // forceX = force along x direction
+    // forceY = force along y direction
+    // forceZ = force along z direction
 
-    force0[0] = 0.0;
-    force1[0] = 0.0;
-    force2[0] = 0.0;
+    forceX[0] = 0.0;
+    forceY[0] = 0.0;
+    forceZ[0] = 0.0;
 
     for (int i = 1; i < NumberOfBodies; i++) {
         const double dx = x[i][0]-x[0][0], dy = x[i][1]-x[0][1], dz = x[i][2]-x[0][2];
@@ -206,9 +209,9 @@ void updateBody() {
 
         const double k = mass[i]*mass[0] / (distSqrd * distance);
 
-        force0[0] += dx*k;
-        force1[0] += dy*k;
-        force2[0] += dz*k;
+        forceX[0] += dx*k;
+        forceY[0] += dy*k;
+        forceZ[0] += dz*k;
 
         minDx = std::min(minDx, distance);
     }
@@ -217,22 +220,15 @@ void updateBody() {
     x[0][1] = x[0][1] + timeStepSize * v[0][1];
     x[0][2] = x[0][2] + timeStepSize * v[0][2];
 
-    // These are three buggy lines of code that we will use in one of the labs
-//  x[0][3] = x[0][2] + timeStepSize * v[0][2];
-//  x[0][2] = x[0][2] + timeStepSize * v[0][2] / 0.0;
-//  x[50000000][1] = x[0][2] + timeStepSize * v[0][2] / 0.0;
-
-    v[0][0] = v[0][0] + timeStepSize * force0[0] / mass[0];
-    v[0][1] = v[0][1] + timeStepSize * force1[0] / mass[0];
-    v[0][2] = v[0][2] + timeStepSize * force2[0] / mass[0];
+    v[0][0] = v[0][0] + timeStepSize * forceX[0] / mass[0];
+    v[0][1] = v[0][1] + timeStepSize * forceY[0] / mass[0];
+    v[0][2] = v[0][2] + timeStepSize * forceZ[0] / mass[0];
 
     maxV = std::sqrt(v[0][0] * v[0][0] + v[0][1] * v[0][1] + v[0][2] * v[0][2]);
 
     t += timeStepSize;
 
-    delete[] force0;
-    delete[] force1;
-    delete[] force2;
+    ZERO_BUFFER(forceX); ZERO_BUFFER(forceY); ZERO_BUFFER(forceZ);
 }
 
 
