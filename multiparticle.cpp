@@ -201,16 +201,14 @@ void updateBody() {
     force2[0] = 0.0;
 
     for (int i = 1; i < NumberOfBodies; i++) {
-        const double distance = sqrt(
-                (x[0][0] - x[i][0]) * (x[0][0] - x[i][0]) +
-                (x[0][1] - x[i][1]) * (x[0][1] - x[i][1]) +
-                (x[0][2] - x[i][2]) * (x[0][2] - x[i][2])
-        );
+        const double dx = x[i][0]-x[0][0], dy = x[i][1]-x[0][1], dz = x[i][2]-x[0][2];
+        const double distSqrd = dx*dx + dy*dy + dz*dz, distance = sqrt(distSqrd);
 
-        // x,y,z forces acting on particle 0
-        force0[0] += (x[i][0] - x[0][0]) * mass[i] * mass[0] / distance / distance / distance;
-        force1[0] += (x[i][1] - x[0][1]) * mass[i] * mass[0] / distance / distance / distance;
-        force2[0] += (x[i][2] - x[0][2]) * mass[i] * mass[0] / distance / distance / distance;
+        const double k = mass[i]*mass[0] / (distSqrd * distance);
+
+        force0[0] += dx*k;
+        force1[0] += dy*k;
+        force2[0] += dz*k;
 
         minDx = std::min(minDx, distance);
     }
