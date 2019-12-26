@@ -243,15 +243,15 @@ void updateBody() {
     }
 
     // Are we likely to be seeing a collision in the next couple of collisions?
-    const auto shouldBeCareful = minDx/maxV <= 10.0 * timeStepSize;
+    const auto shouldBeCareful = minDx <= 0.1;
 
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
 
     // ----- Update Particle Positions and Velocity
     if (shouldBeCareful) {
-        // Use h/2 for scheme. Velocity: Range Kutta. Position: Adams-Bashford
-        double dt = timeStepSize/15;
+        // Velocity: Range Kutta. Position: Adams-Bashford with smaller timestep
+        double dt = timeStepSize/4;
 
         computeAccelerations(x, k1X, k1Y, k1Z);
 
@@ -285,7 +285,7 @@ void updateBody() {
             v[ii][1] += dt / 6.0 * (k1Y[ii] + 2.0*k2Y[ii] + 2.0*k3Y[ii] + k4Y[ii]);
             v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0*k2Z[ii] + 2.0*k3Z[ii] + k4Z[ii]);
 
-            maxV = std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+            maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
 
             x[ii][0] += dt*v[ii][0];
             x[ii][1] += dt*v[ii][1];
@@ -314,7 +314,7 @@ void updateBody() {
                 v[ii][2] += timeStepSize*k1Z[ii];
             }
 
-            maxV = std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+            maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
 
             x[ii][0] += timeStepSize*v[ii][0];
             x[ii][1] += timeStepSize*v[ii][1];
@@ -330,47 +330,6 @@ void updateBody() {
         }
 
         t += timeStepSize;
-    }
-
-
-    // --- See if any particles have collided.
-    const double collisionDistanceThreshold = 0.01 * 0.01;
-
-    // Check if an particles are inside of each other.
-    for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-        for (auto j = ii + 1; j < NumberOfBodies; ++j) {
-            const double dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
-            const double distSqrd = dx * dx + dy * dy + dz * dz;
-
-            if (distSqrd <= collisionDistanceThreshold) {
-                // Particles ii and j have collided.
-                // We merge particles ii and j into the slot ii in x, v, mass
-
-                const double M = mass[ii] + mass[j];
-
-                for (int k = 0; k < 3; ++k) {
-                    v[ii][k] = (mass[ii] * v[ii][k] + mass[j] * v[j][k]) / M;
-                    x[ii][k] = 0.5d * (x[ii][k] + x[j][k]);
-                }
-
-                mass[ii] = M;
-
-                maxV = std::max(maxV, sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-                if (j != NumberOfBodies - 1) {
-                    // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
-                    std::swap(mass[j], mass[NumberOfBodies - 1]);
-                    std::swap(v[j], v[NumberOfBodies - 1]);
-                    std::swap(x[j], x[NumberOfBodies - 1]);
-                }
-
-                lastVx[j] = v[j][0];
-                lastVy[j] = v[j][1];
-                lastVz[j] = v[j][2];
-
-                NumberOfBodies -= 1;
-            }
-        }
     }
 }
 
@@ -423,7 +382,7 @@ int main(int argc, char **argv) {
     }
 
     int timeStepCounter = 0;
-    while (t <= tFinal && NumberOfBodies > 1) {
+    while (t <= tFinal) {
         updateBody();
         timeStepCounter++;
         if (t >= tPlot) {
