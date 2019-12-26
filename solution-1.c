@@ -243,7 +243,7 @@ void updateBody() {
     }
 
     // Are we likely to be seeing a collision in the next couple of collisions?
-    const auto shouldBeCareful = minDx <= 0.1;
+    const auto shouldBeCareful = minDx <= 0.25;
 
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
