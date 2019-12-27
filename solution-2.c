@@ -227,6 +227,10 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 }
 
 void updateBody() {
+    // Buffers for Adams-Bushford for velocities.
+    MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
+
+    // Buffers for Runge-Kutta
     MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
     MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
     MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
@@ -235,6 +239,8 @@ void updateBody() {
     // Used to store temporary projected world.
     static auto** tmpx = new double*[NumberOfBodies]();
     if (t == 0) {
+        lastAx[0] = std::numeric_limits<double>::quiet_NaN();
+
         for (int ii = 0; ii < NumberOfBodies; ++ii) {
             tmpx[ii] = new double[3]();
         }
@@ -248,7 +254,7 @@ void updateBody() {
 
     // ----- Update Particle Positions and Velocity
     if (shouldBeCareful) {
-        // Velocity: Range Kutta. Position: Explicit Euler 
+        // Velocity: Range Kutta. Position: Explicit Euler
         double dt = timeStepSize/4;
 
         computeAccelerations(x, k1X, k1Y, k1Z);
@@ -293,12 +299,10 @@ void updateBody() {
         t += dt;
     } else {
         // Use normal timeStepSize. Velocity: Adams-Bashford, Position: Explicit Euler
-        MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
-
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            if (t > 0) {
+            if (!isnan(lastAx[0])) {
                 v[ii][0] += timeStepSize*(1.5*k1X[ii] - 0.5*lastAx[ii]);
                 v[ii][1] += timeStepSize*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
                 v[ii][2] += timeStepSize*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
@@ -340,11 +344,11 @@ void updateBody() {
 
                 for (int k = 0; k < 3; ++k) {
                     v[ii][k] = (mass[ii] * v[ii][k] + mass[j] * v[j][k]) / M;
-                    x[ii][k] = 0.5d * (x[ii][k] + x[j][k]);
+                    x[ii][k] = 0.5 * (x[ii][k] + x[j][k]);
                 }
 
+                lastAx[ii] = std::numeric_limits<double>::quiet_NaN();
                 mass[ii] = M;
-
                 maxV = std::max(maxV, sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
 
                 if (j != NumberOfBodies - 1) {
