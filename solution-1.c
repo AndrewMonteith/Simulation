@@ -227,6 +227,8 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 }
 
 void updateBody() {
+    MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
+
     MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
     MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
     MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
@@ -288,12 +290,15 @@ void updateBody() {
             x[ii][0] += dt*v[ii][0];
             x[ii][1] += dt*v[ii][1];
             x[ii][2] += dt*v[ii][2];
+
+            lastAx[ii] = k1X[ii];
+            lastAy[ii] = k1Y[ii];
+            lastAz[ii] = k1Z[ii];
         }
 
         t += dt;
     } else {
         // Use normal timeStepSize. Velocity: Adams-Bashford, Position: Explicit Euler
-        MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
 
         computeAccelerations(x, k1X, k1Y, k1Z);
 
@@ -318,6 +323,7 @@ void updateBody() {
             lastAy[ii] = k1Y[ii];
             lastAz[ii] = k1Z[ii];
         }
+
 
         t += timeStepSize;
     }
