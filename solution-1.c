@@ -227,8 +227,6 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 }
 
 void updateBody() {
-    MAKE_BUFFER(lastVx); MAKE_BUFFER(lastVy); MAKE_BUFFER(lastVz);
-
     MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
     MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
     MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
@@ -243,14 +241,14 @@ void updateBody() {
     }
 
     // Are we likely to be seeing a collision in the next couple of collisions?
-    const auto shouldBeCareful = minDx <= 0.25;
+    const auto shouldBeCareful = minDx <= 0.35;
 
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
 
     // ----- Update Particle Positions and Velocity
     if (shouldBeCareful) {
-        // Velocity: Range Kutta. Position: Adams-Bashford with smaller timestep
+        // Velocity: Range Kutta. Position: Explicit Euler
         double dt = timeStepSize/4;
 
         computeAccelerations(x, k1X, k1Y, k1Z);
@@ -290,10 +288,6 @@ void updateBody() {
             x[ii][0] += dt*v[ii][0];
             x[ii][1] += dt*v[ii][1];
             x[ii][2] += dt*v[ii][2];
-
-            lastVx[ii] = v[ii][0];
-            lastVy[ii] = v[ii][1];
-            lastVz[ii] = v[ii][2];
         }
 
         t += dt;
@@ -323,10 +317,6 @@ void updateBody() {
             lastAx[ii] = k1X[ii];
             lastAy[ii] = k1Y[ii];
             lastAz[ii] = k1Z[ii];
-
-            lastVx[ii] = v[ii][0];
-            lastVy[ii] = v[ii][1];
-            lastVz[ii] = v[ii][2];
         }
 
         t += timeStepSize;
