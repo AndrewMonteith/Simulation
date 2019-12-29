@@ -20,6 +20,9 @@
 #include <limits>
 #include <iomanip>
 #include <cstring>
+#include <vector>
+#include <cmath>
+#include <numeric>
 
 
 double t = 0;
@@ -191,64 +194,77 @@ void printParaviewSnapshot() {
 #define ZERO_BUFFER(name) std::memset(name, 0, sizeof(double)*NumberOfBodies);
 
 void updateBody() {
-    // Buffers for Adam-Bashford:
-    MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
     MAKE_BUFFER(forceX); MAKE_BUFFER(forceY); MAKE_BUFFER(forceZ);
+
+    static std::vector<std::vector<int>> buckets(10);
+
+    if (t == 0) {
+        // If first timestep initalise the buckets.
+        for (int ii = 0; ii < 10; ++ii) {
+            buckets[ii] = std::vector<int>();
+            buckets[ii].reserve(NumberOfBodies);
+        }
+
+        // On first iteration first bucket contains all the particles.
+        for (int ii = 0; ii < NumberOfBodies; ++ii) {
+            buckets[0].push_back(ii);
+        }
+    }
 
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
 
-    for (int ii = 0; ii < NumberOfBodies; ++ii) {
-        for (int j = ii + 1; j < NumberOfBodies; ++j) {
-            const double dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
-            const double distSqrd = dx * dx + dy * dy + dz * dz, distance = sqrt(distSqrd);
+    for (auto b = 0; b < buckets.size(); ++b) {
+        auto& bucket = buckets[b];
 
-            const double k = mass[ii] * mass[j] / (distSqrd * distance);
-            const double Fx = k * dx, Fy = k * dy, Fz = k * dz;
+        if (bucket.empty()) { continue; }
 
-            minDx = std::min(minDx, distance);
+        auto bckNum = b+1;
+        auto dt = timeStepSize/bckNum;
 
-            forceX[ii] += Fx;
-            forceY[ii] += Fy;
-            forceZ[ii] += Fz;
+        for (auto step = 0; step < bckNum; ++step) {
+            // Compute force felt on particles in the bucket.
+            for (int p : bucket) {
+                for (int ii = 0; ii < NumberOfBodies; ++ii) {
+                    if (ii == p) { continue; }
 
-            forceX[j] -= Fx;
-            forceY[j] -= Fy;
-            forceZ[j] -= Fz;
+                    const double dx = x[p][0] - x[ii][0], dy = x[p][1] - x[ii][1], dz = x[p][2] - x[ii][2];
+                    const double distSqrd = dx * dx + dy * dy + dz * dz, distance = sqrt(distSqrd);
 
-            minDx = std::min(minDx, distance);
+                    const double k = mass[ii] * mass[p] / (distSqrd * distance);
+                    const double Fx = k * dx, Fy = k * dy, Fz = k * dz;
+
+                    minDx = std::min(minDx, distance);
+
+                    forceX[ii] += Fx;
+                    forceY[ii] += Fy;
+                    forceZ[ii] += Fz;
+                }
+            }
+
+            // Update Position for each particle
+            for (int p : bucket) {
+                const auto aX = forceX[p]/mass[p], aY = forceY[p]/mass[p], aZ = forceZ[p]/mass[p];
+
+                v[p][0] += dt*aX;
+                v[p][1] += dt*aY;
+                v[p][2] += dt*aZ;
+
+                x[p][0] += dt*v[p][0];
+                x[p][1] += dt*v[p][1];
+                x[p][2] += dt*v[p][2];
+            }
         }
+
+        bucket.clear();
     }
 
-
-    for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-        const auto aX = forceX[ii]/mass[ii], aY = forceY[ii]/mass[ii], aZ = forceZ[ii]/mass[ii];
-
-        if (!isnan(lastAx[ii])) {
-            v[ii][0] += timeStepSize*(1.5*aX - 0.5*lastAx[ii]);
-            v[ii][1] += timeStepSize*(1.5*aY - 0.5*lastAy[ii]);
-            v[ii][2] += timeStepSize*(1.5*aZ - 0.5*lastAz[ii]);
-        } else {
-            v[ii][0] += timeStepSize*aX;
-            v[ii][1] += timeStepSize*aY;
-            v[ii][2] += timeStepSize*aZ;
-        }
-
-        maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-        x[ii][0] += timeStepSize*v[ii][0];
-        x[ii][1] += timeStepSize*v[ii][1];
-        x[ii][2] += timeStepSize*v[ii][2];
-
-        lastAx[ii] = aX;
-        lastAy[ii] = aY;
-        lastAz[ii] = aZ;
-    }
-
+    ZERO_BUFFER(forceX); ZERO_BUFFER(forceY); ZERO_BUFFER(forceZ);
     t += timeStepSize;
 
     // --------- See if any particles have collided.
     const double collisionDistanceThreshold = 0.01 * 0.01;
+    const double vBucket = 10;
 
     // Check if an particles are inside of each other.
     for (auto ii = 0; ii < NumberOfBodies; ++ii) {
@@ -256,37 +272,40 @@ void updateBody() {
             const double dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
             const double distSqrd = dx * dx + dy * dy + dz * dz;
 
-            if (distSqrd <= collisionDistanceThreshold) {
-                // Particles ii and j have collided.
-                // We merge particles ii and j into the slot ii in x, v, mass
-                const double M = mass[ii] + mass[j];
-
-                for (int k = 0; k < 3; ++k) {
-                    v[ii][k] = (mass[ii] * v[ii][k] + mass[j] * v[j][k]) / M;
-                    x[ii][k] = 0.5 * (x[ii][k] + x[j][k]);
-                }
-
-                lastAx[ii] = std::numeric_limits<double>::quiet_NaN();
-                mass[ii] = M;
-                maxV = std::max(maxV, sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-                if (j != NumberOfBodies - 1) {
-                    // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
-                    std::swap(mass[j], mass[NumberOfBodies - 1]);
-                    std::swap(v[j], v[NumberOfBodies - 1]);
-                    std::swap(x[j], x[NumberOfBodies - 1]);
-                }
-
-                NumberOfBodies -= 1;
+            if (distSqrd > collisionDistanceThreshold) {
+                continue;
             }
+
+            // Particles ii and j have collided.
+            // We merge particles ii and j into the slot ii in x, v, mass
+            const double M = mass[ii] + mass[j];
+
+            for (int k = 0; k < 3; ++k) {
+                v[ii][k] = (mass[ii] * v[ii][k] + mass[j] * v[j][k]) / M;
+                x[ii][k] = 0.5 * (x[ii][k] + x[j][k]);
+            }
+
+            mass[ii] = M;
+
+            if (j != NumberOfBodies - 1) {
+                // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
+                std::swap(mass[j], mass[NumberOfBodies - 1]);
+                std::swap(v[j], v[NumberOfBodies - 1]);
+                std::swap(x[j], x[NumberOfBodies - 1]);
+            }
+
+            NumberOfBodies -= 1;
         }
+
+        auto velocity = sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+        maxV = std::max(maxV, velocity);
+        buckets[std::min((int)std::floor(velocity/vBucket), 9)].push_back(ii);
     }
 
     if (NumberOfBodies == 1) {
         std::cout << x[0][0] << "," << x[0][1] << "," << x[0][2] << std::endl;
     }
 
-    ZERO_BUFFER(forceX); ZERO_BUFFER(forceY); ZERO_BUFFER(forceZ);
 }
 
 
