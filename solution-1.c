@@ -190,6 +190,10 @@ void printParaviewSnapshot() {
 #define MAKE_BUFFER(name) static auto* name = new double[NumberOfBodies]();
 #define ZERO_BUFFER(name) std::memset(name, 0, sizeof(double)*NumberOfBodies);
 
+/*
+ * Given a list of particles positions, pos, we compute the acceleration being felt
+ * on each particle i and store it in (aX[i], aY[i], aZ[i]).
+ */
 inline void computeAccelerations(double** pos, double aX[], double aY[], double aZ[]) {
     MAKE_BUFFER(forceX); MAKE_BUFFER(forceY); MAKE_BUFFER(forceZ);
 
@@ -227,32 +231,52 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 }
 
 void updateBody() {
+    /*
+     * README:
+     *   I wasn't sure whether this coursework was to add our own schemes or just to improve the explicit euler you gave us.
+     *   I thought it was the latter and so implemented the following scheme:
+     *     - If minDx = 0.5:
+     *         - We use a timestep of h/4
+     *         - Runge-Kutta for velocities
+     *         - Explicit Euler for position
+     *     - Else:
+     *         - We use a timestep of h
+     *         - Adam-Bashforth for velocities
+     *         - Explicit Euler for position
+     */
+
+    // Buffers for Adam-Bashford:
     MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
 
+    // Buffers for Runge-Kutta:
     MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
     MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
     MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
     MAKE_BUFFER(k4X); MAKE_BUFFER(k4Y); MAKE_BUFFER(k4Z);
 
-    // Used to store temporary projected world.
+    // Used to store temporary world for runge-kutta.
     static auto** tmpx = new double*[NumberOfBodies]();
     if (t == 0) {
         for (int ii = 0; ii < NumberOfBodies; ++ii) {
             tmpx[ii] = new double[3]();
         }
+
+        // Mark last acceleration as not known
+        lastAx[0] = std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Are we likely to be seeing a collision in the next couple of collisions?
-    const auto shouldBeCareful = minDx <= 0.35;
+    // Do we need to use a more accurate scheme? (runge-kutta)
+    const bool shouldBeCareful = minDx <= 0.35;
 
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
 
-    // ----- Update Particle Positions and Velocity
-    if (shouldBeCareful) {
-        // Velocity: Range Kutta. Position: Explicit Euler
-        double dt = timeStepSize/4;
+    // Timestep to use for this iteration.
+    const auto dt = shouldBeCareful ? timeStepSize/4 : timeStepSize;
 
+    // --- Update the velocities of all the particles.
+    if (shouldBeCareful) {
+        // Use runge kutta to update the velocities
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         // Project current state ahead h/2
@@ -286,47 +310,37 @@ void updateBody() {
             v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0*k2Z[ii] + 2.0*k3Z[ii] + k4Z[ii]);
 
             maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-            x[ii][0] += dt*v[ii][0];
-            x[ii][1] += dt*v[ii][1];
-            x[ii][2] += dt*v[ii][2];
-
-            lastAx[ii] = k1X[ii];
-            lastAy[ii] = k1Y[ii];
-            lastAz[ii] = k1Z[ii];
         }
-
-        t += dt;
     } else {
-        // Use normal timeStepSize. Velocity: Adams-Bashford, Position: Explicit Euler
-
+        // Use Adams-Bashforth to update the velocities
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            if (t > 0) {
-                v[ii][0] += timeStepSize*(1.5*k1X[ii] - 0.5*lastAx[ii]);
-                v[ii][1] += timeStepSize*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
-                v[ii][2] += timeStepSize*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
+            if (!isnan(lastAx[0])) {
+                v[ii][0] += dt*(1.5*k1X[ii] - 0.5*lastAx[ii]);
+                v[ii][1] += dt*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
+                v[ii][2] += dt*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
             } else {
-                v[ii][0] += timeStepSize*k1X[ii];
-                v[ii][1] += timeStepSize*k1Y[ii];
-                v[ii][2] += timeStepSize*k1Z[ii];
+                v[ii][0] += dt*k1X[ii];
+                v[ii][1] += dt*k1Y[ii];
+                v[ii][2] += dt*k1Z[ii];
             }
 
             maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-            x[ii][0] += timeStepSize*v[ii][0];
-            x[ii][1] += timeStepSize*v[ii][1];
-            x[ii][2] += timeStepSize*v[ii][2];
-
-            lastAx[ii] = k1X[ii];
-            lastAy[ii] = k1Y[ii];
-            lastAz[ii] = k1Z[ii];
         }
-
-
-        t += timeStepSize;
     }
+
+    for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+        x[ii][0] += dt*v[ii][0];
+        x[ii][1] += dt*v[ii][1];
+        x[ii][2] += dt*v[ii][2];
+
+        lastAx[ii] = k1X[ii];
+        lastAy[ii] = k1Y[ii];
+        lastAz[ii] = k1Z[ii];
+    }
+
+    t += dt;
 }
 
 
