@@ -227,36 +227,38 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 }
 
 void updateBody() {
-    // Buffers for Adams-Bushford for velocities.
+    // Buffers for Adam-Bashford:
     MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
 
-    // Buffers for Runge-Kutta
+    // Buffers for Runge-Kutta:
     MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
     MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
     MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
     MAKE_BUFFER(k4X); MAKE_BUFFER(k4Y); MAKE_BUFFER(k4Z);
 
-    // Used to store temporary projected world.
+    // Used to store temporary world for runge-kutta.
     static auto** tmpx = new double*[NumberOfBodies]();
     if (t == 0) {
-        lastAx[0] = std::numeric_limits<double>::quiet_NaN();
-
         for (int ii = 0; ii < NumberOfBodies; ++ii) {
             tmpx[ii] = new double[3]();
         }
+
+        // Mark last acceleration as not known
+        lastAx[0] = std::numeric_limits<double>::quiet_NaN();
     }
 
-    // Are we likely to be seeing a collision in the next couple of collisions?
-    const auto shouldBeCareful = minDx <= 0.35;
+    // Do we need to use a more accurate scheme? (runge-kutta)
+    const bool shouldBeCareful = minDx <= 0.35;
 
     maxV = 0;
     minDx = std::numeric_limits<double>::max();
 
-    // ----- Update Particle Positions and Velocity
-    if (shouldBeCareful) {
-        // Velocity: Range Kutta. Position: Explicit Euler
-        double dt = timeStepSize/4;
+    // Timestep to use for this iteration.
+    const auto dt = shouldBeCareful ? timeStepSize/4 : timeStepSize;
 
+    // --- Update the velocities of all the particles.
+    if (shouldBeCareful) {
+        // Use runge kutta to update the velocities
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         // Project current state ahead h/2
@@ -290,44 +292,39 @@ void updateBody() {
             v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0*k2Z[ii] + 2.0*k3Z[ii] + k4Z[ii]);
 
             maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-            x[ii][0] += dt*v[ii][0];
-            x[ii][1] += dt*v[ii][1];
-            x[ii][2] += dt*v[ii][2];
         }
-
-        t += dt;
     } else {
-        // Use normal timeStepSize. Velocity: Adams-Bashford, Position: Explicit Euler
+        // Use Adams-Bashforth to update the velocities
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
             if (!isnan(lastAx[0])) {
-                v[ii][0] += timeStepSize*(1.5*k1X[ii] - 0.5*lastAx[ii]);
-                v[ii][1] += timeStepSize*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
-                v[ii][2] += timeStepSize*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
+                v[ii][0] += dt*(1.5*k1X[ii] - 0.5*lastAx[ii]);
+                v[ii][1] += dt*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
+                v[ii][2] += dt*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
             } else {
-                v[ii][0] += timeStepSize*k1X[ii];
-                v[ii][1] += timeStepSize*k1Y[ii];
-                v[ii][2] += timeStepSize*k1Z[ii];
+                v[ii][0] += dt*k1X[ii];
+                v[ii][1] += dt*k1Y[ii];
+                v[ii][2] += dt*k1Z[ii];
             }
 
             maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-            x[ii][0] += timeStepSize*v[ii][0];
-            x[ii][1] += timeStepSize*v[ii][1];
-            x[ii][2] += timeStepSize*v[ii][2];
-
-            lastAx[ii] = k1X[ii];
-            lastAy[ii] = k1Y[ii];
-            lastAz[ii] = k1Z[ii];
         }
-
-        t += timeStepSize;
     }
 
+    for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+        x[ii][0] += dt*v[ii][0];
+        x[ii][1] += dt*v[ii][1];
+        x[ii][2] += dt*v[ii][2];
 
-    // --- See if any particles have collided.
+        lastAx[ii] = k1X[ii];
+        lastAy[ii] = k1Y[ii];
+        lastAz[ii] = k1Z[ii];
+    }
+
+    t += dt;
+
+    // --------- See if any particles have collided.
     const double collisionDistanceThreshold = 0.01 * 0.01;
 
     // Check if an particles are inside of each other.
@@ -339,7 +336,6 @@ void updateBody() {
             if (distSqrd <= collisionDistanceThreshold) {
                 // Particles ii and j have collided.
                 // We merge particles ii and j into the slot ii in x, v, mass
-
                 const double M = mass[ii] + mass[j];
 
                 for (int k = 0; k < 3; ++k) {
