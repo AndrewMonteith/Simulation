@@ -239,8 +239,6 @@ void updateBody() {
                     const auto dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
                     const auto distSqrd = dx*dx + dy*dy + dz*dz, distance = std::sqrt(distSqrd);
 
-//                    std::cout << "Distance:" << distance << std::endl;
-
                     minDx = std::min(minDx, distance);
 
                     const auto k = mass[ii] * mass[j] / (distSqrd * distance);
@@ -249,8 +247,6 @@ void updateBody() {
                     forceY[ii] += k*dy;
                     forceZ[ii] += k*dz;
                 }
-
-//                std::cout << "Force felt on particle " << ii << " " << forceX[ii] << " " << forceY[ii] << " " << forceZ[ii] << std::endl;
             }
 
             // Update the positions & velocities
@@ -282,12 +278,11 @@ void updateBody() {
                         // Particles ii and j have collided.
                         // We merge particles ii and j into the slot ii in x, v, mass
                         const auto M = mass[ii] + mass[jj];
-
                         const auto ki = mass[ii]/M, kj = mass[jj]/M;
 
                         for (int k = 0; k < 3; ++k) {
                             v[ii][k] = v[ii][k]*ki + v[jj][k]*kj;
-                            x[ii][k] = ki*x[ii][k] + kj*x[jj][k];
+                            x[ii][k] = x[ii][k]*ki + x[jj][k]*kj;
                         }
 
                         mass[ii] = M;

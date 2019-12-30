@@ -212,8 +212,6 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
             forceX[j] -= Fx;
             forceY[j] -= Fy;
             forceZ[j] -= Fz;
-
-            minDx = std::min(minDx, distance);
         }
     }
 
