@@ -84,7 +84,7 @@ void setUp(int argc, char **argv) {
     x = new double *[NumberOfBodies];
     v = new double *[NumberOfBodies];
     mass = new double[NumberOfBodies];
-    buckets = new int[NumberOfBuckets]();
+    buckets = new int[NumberOfBodies]();
 
     int readArgument = 1;
 
@@ -206,7 +206,7 @@ void updateBody() {
     auto *forceY = new double[NumberOfBodies]();
     auto *forceZ = new double[NumberOfBodies]();
 
-    const double vBucket = 10.0 / NumberOfBuckets;
+    const double vBucket = 130.0 / NumberOfBuckets;
     for (auto ii = 0; ii < NumberOfBodies; ++ii) {
         buckets[ii] = 0;
         const auto vi = v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2]*v[ii][2];
@@ -269,31 +269,29 @@ void updateBody() {
             for (auto ii = 0; ii < NumberOfBodies; ++ii) {
                 if (buckets[ii] != bucketNum) { continue; }
 
-                for (int jj = 0; jj < NumberOfBodies; ++jj) {
-                    if (ii == jj) { continue; }
+                for (int j = ii+1; j < NumberOfBodies; ++j) {
+                    if (ii == j) { continue; }
 
-                    const auto dx = x[ii][0]-x[jj][0], dy = x[ii][1]-x[jj][1], dz = x[ii][2]-x[jj][2];
+                    const auto dx = x[ii][0]-x[j][0], dy = x[ii][1]-x[j][1], dz = x[ii][2]-x[j][2];
                     const auto distSqrd = dx*dx + dy*dy + dz*dz;
 
                     if (distSqrd <= 0.01*0.01) {
                         // Particles ii and j have collided.
                         // We merge particles ii and j into the slot ii in x, v, mass
-                        const auto M = mass[ii] + mass[jj];
-                        const auto ki = mass[ii]/M, kj = mass[jj]/M;
+                        const auto M = mass[ii] + mass[j];
+                        const auto ki = mass[ii]/M, kj = mass[j]/M;
 
                         for (int k = 0; k < 3; ++k) {
-                            v[ii][k] = v[ii][k]*ki + v[jj][k]*kj;
-                            x[ii][k] = x[ii][k]*ki + x[jj][k]*kj;
+                            v[ii][k] = v[ii][k]*ki + v[j][k]*kj;
+                            x[ii][k] = x[ii][k]*ki + x[j][k]*kj;
                         }
 
                         mass[ii] = M;
 
-                        if (jj != NumberOfBodies - 1) {
-                            mass[jj] = mass[NumberOfBodies-1];
-                            v[jj] = v[NumberOfBodies-1];
-                            x[jj] = x[NumberOfBodies-1];
-                            buckets[jj] = buckets[NumberOfBodies-1];
-                        }
+                        mass[j] = mass[NumberOfBodies-1];
+                        v[j] = v[NumberOfBodies-1];
+                        x[j] = x[NumberOfBodies-1];
+                        buckets[j] = buckets[NumberOfBodies-1];
 
                         --NumberOfBodies;
                     }
