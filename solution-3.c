@@ -206,10 +206,10 @@ void updateBody() {
     auto *forceY = new double[NumberOfBodies]();
     auto *forceZ = new double[NumberOfBodies]();
 
-    const double vBucket = 130.0 / NumberOfBuckets;
+    const double vBucket = 10.0 / NumberOfBuckets;
     for (auto ii = 0; ii < NumberOfBodies; ++ii) {
         buckets[ii] = 0;
-        const auto vi = v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2] * v[ii][2];
+        const auto vi = v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2]*v[ii][2];
 
         for (int j = NumberOfBodies - 1; j >= 1; --j) {
             if (vi >= j * vBucket * j * vBucket) {
@@ -257,9 +257,10 @@ void updateBody() {
                 x[ii][1] += dt*v[ii][1];
                 x[ii][2] += dt*v[ii][2];
 
-                v[ii][0] += dt*forceX[ii]/mass[ii];
-                v[ii][1] += dt*forceY[ii]/mass[ii];
-                v[ii][2] += dt*forceZ[ii]/mass[ii];
+                const auto k = dt/mass[ii];
+                v[ii][0] += k*forceX[ii];
+                v[ii][1] += k*forceY[ii];
+                v[ii][2] += k*forceZ[ii];
 
                 maxV = std::max(maxV, v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2]*v[ii][2]);
             }
@@ -291,6 +292,7 @@ void updateBody() {
                             mass[jj] = mass[NumberOfBodies-1];
                             v[jj] = v[NumberOfBodies-1];
                             x[jj] = x[NumberOfBodies-1];
+                            buckets[jj] = buckets[NumberOfBodies-1];
                         }
 
                         --NumberOfBodies;
