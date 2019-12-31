@@ -239,13 +239,13 @@ void updateBody() {
                     const auto dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
                     const auto distSqrd = dx*dx + dy*dy + dz*dz, distance = std::sqrt(distSqrd);
 
-                    minDx = std::min(minDx, distance);
-
                     const auto k = mass[ii] * mass[j] / (distSqrd * distance);
 
                     forceX[ii] += k*dx;
                     forceY[ii] += k*dy;
                     forceZ[ii] += k*dz;
+
+                    minDx = std::min(minDx, distance);
                 }
             }
 
@@ -275,26 +275,31 @@ void updateBody() {
                     const auto dx = x[ii][0]-x[j][0], dy = x[ii][1]-x[j][1], dz = x[ii][2]-x[j][2];
                     const auto distSqrd = dx*dx + dy*dy + dz*dz;
 
-                    if (distSqrd <= 0.01*0.01) {
-                        // Particles ii and j have collided.
-                        // We merge particles ii and j into the slot ii in x, v, mass
-                        const auto M = mass[ii] + mass[j];
-                        const auto ki = mass[ii]/M, kj = mass[j]/M;
-
-                        for (int k = 0; k < 3; ++k) {
-                            v[ii][k] = v[ii][k]*ki + v[j][k]*kj;
-                            x[ii][k] = x[ii][k]*ki + x[j][k]*kj;
-                        }
-
-                        mass[ii] = M;
-
-                        mass[j] = mass[NumberOfBodies-1];
-                        v[j] = v[NumberOfBodies-1];
-                        x[j] = x[NumberOfBodies-1];
-                        buckets[j] = buckets[NumberOfBodies-1];
-
-                        --NumberOfBodies;
+                    if (distSqrd > 0.01*0.01) {
+                        continue;
                     }
+
+                    // Particles ii and j have collided.
+                    // We merge particles ii and j into the slot ii in x, v, mass
+                    const auto M = mass[ii] + mass[j];
+                    const auto ki = mass[ii]/M, kj = mass[j]/M;
+
+		    v[ii][0] = v[ii][0]*ki + v[j][0]*kj;
+		    v[ii][1] = v[ii][1]*ki + v[j][1]*kj;
+		    v[ii][2] = v[ii][2]*ki + v[j][2]*kj;
+
+		    x[ii][0] = x[ii][0]*ki + x[j][0]*kj;
+		    x[ii][1] = x[ii][1]*ki + x[j][1]*kj;
+		    x[ii][2] = x[ii][2]*ki + x[j][2]*kj;
+
+                    mass[ii] = M;
+
+                    mass[j] = mass[NumberOfBodies-1];
+                    v[j] = v[NumberOfBodies-1];
+                    x[j] = x[NumberOfBodies-1];
+                    buckets[j] = buckets[NumberOfBodies-1];
+
+                    --NumberOfBodies;
                 }
             }
         }
@@ -307,10 +312,6 @@ void updateBody() {
     maxV = std::sqrt(maxV);
 
     t += timeStepSize;
-
-    if (NumberOfBodies == 1) {
-        std::cout << x[0][0] << "," << x[0][1] << "," << x[0][2] << std::endl;
-    }
 }
 
 
