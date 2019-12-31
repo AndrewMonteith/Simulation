@@ -20,6 +20,7 @@
 #include <limits>
 #include <iomanip>
 #include <cstring>
+#include <cmath>
 
 
 double t = 0;
@@ -190,10 +191,6 @@ void printParaviewSnapshot() {
 #define MAKE_BUFFER(name) static auto* name = new double[NumberOfBodies]();
 #define ZERO_BUFFER(name) std::memset(name, 0, sizeof(double)*NumberOfBodies);
 
-/*
- * Given a list of particles positions, pos, we compute the acceleration being felt
- * on each particle i and store it in (aX[i], aY[i], aZ[i]).
- */
 inline void computeAccelerations(double** pos, double aX[], double aY[], double aZ[]) {
     MAKE_BUFFER(forceX); MAKE_BUFFER(forceY); MAKE_BUFFER(forceZ);
 
@@ -216,12 +213,8 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
             forceX[j] -= Fx;
             forceY[j] -= Fy;
             forceZ[j] -= Fz;
-
-            minDx = std::min(minDx, distance);
         }
-    }
 
-    for (int ii = 0; ii < NumberOfBodies; ++ii) {
         aX[ii] = forceX[ii]/mass[ii];
         aY[ii] = forceY[ii]/mass[ii];
         aZ[ii] = forceZ[ii]/mass[ii];
@@ -231,20 +224,6 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 }
 
 void updateBody() {
-    /*
-     * README:
-     *   I wasn't sure whether this coursework was to add our own schemes or just to improve the explicit euler you gave us.
-     *   I thought it was the latter and so implemented the following scheme:
-     *     - If minDx = 0.5:
-     *         - We use a timestep of h/4
-     *         - Runge-Kutta for velocities
-     *         - Explicit Euler for position
-     *     - Else:
-     *         - We use a timestep of h
-     *         - Adam-Bashforth for velocities
-     *         - Explicit Euler for position
-     */
-
     // Buffers for Adam-Bashford:
     MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
 
@@ -255,14 +234,11 @@ void updateBody() {
     MAKE_BUFFER(k4X); MAKE_BUFFER(k4Y); MAKE_BUFFER(k4Z);
 
     // Used to store temporary world for runge-kutta.
-    static auto** tmpx = new double*[NumberOfBodies]();
+    static auto **tmpx = new double *[NumberOfBodies]();
     if (t == 0) {
         for (int ii = 0; ii < NumberOfBodies; ++ii) {
             tmpx[ii] = new double[3]();
         }
-
-        // Mark last acceleration as not known
-        lastAx[0] = std::numeric_limits<double>::quiet_NaN();
     }
 
     // Do we need to use a more accurate scheme? (runge-kutta)
@@ -272,7 +248,7 @@ void updateBody() {
     minDx = std::numeric_limits<double>::max();
 
     // Timestep to use for this iteration.
-    const auto dt = shouldBeCareful ? timeStepSize/4 : timeStepSize;
+    const auto dt = shouldBeCareful ? timeStepSize / 4 : timeStepSize;
 
     // --- Update the velocities of all the particles.
     if (shouldBeCareful) {
@@ -281,17 +257,17 @@ void updateBody() {
 
         // Project current state ahead h/2
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            tmpx[ii][0] = x[ii][0] + dt/2 * (v[ii][0] + k1X[ii]);
-            tmpx[ii][1] = x[ii][1] + dt/2 * (v[ii][1] + k1Y[ii]);
-            tmpx[ii][2] = x[ii][2] + dt/2 * (v[ii][2] + k1Z[ii]);
+            tmpx[ii][0] = x[ii][0] + dt / 2 * (v[ii][0] + k1X[ii]);
+            tmpx[ii][1] = x[ii][1] + dt / 2 * (v[ii][1] + k1Y[ii]);
+            tmpx[ii][2] = x[ii][2] + dt / 2 * (v[ii][2] + k1Z[ii]);
         }
 
         computeAccelerations(tmpx, k2X, k2Y, k2Z);
 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            tmpx[ii][0] = x[ii][0] + dt/2 * (v[ii][0] + k2X[ii]);
-            tmpx[ii][1] = x[ii][1] + dt/2 * (v[ii][1] + k2Y[ii]);
-            tmpx[ii][2] = x[ii][2] + dt/2 * (v[ii][2] + k2Z[ii]);
+            tmpx[ii][0] = x[ii][0] + dt / 2 * (v[ii][0] + k2X[ii]);
+            tmpx[ii][1] = x[ii][1] + dt / 2 * (v[ii][1] + k2Y[ii]);
+            tmpx[ii][2] = x[ii][2] + dt / 2 * (v[ii][2] + k2Z[ii]);
         }
 
         computeAccelerations(tmpx, k3X, k3Y, k3Z);
@@ -304,42 +280,43 @@ void updateBody() {
 
         computeAccelerations(tmpx, k4X, k4Y, k4Z);
 
-        for (auto ii = 0 ; ii < NumberOfBodies; ++ii) {
-            v[ii][0] += dt / 6.0 * (k1X[ii] + 2.0*k2X[ii] + 2.0*k3X[ii] + k4X[ii]);
-            v[ii][1] += dt / 6.0 * (k1Y[ii] + 2.0*k2Y[ii] + 2.0*k3Y[ii] + k4Y[ii]);
-            v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0*k2Z[ii] + 2.0*k3Z[ii] + k4Z[ii]);
+        for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+            v[ii][0] += dt / 6.0 * (k1X[ii] + 2.0 * k2X[ii] + 2.0 * k3X[ii] + k4X[ii]);
+            v[ii][1] += dt / 6.0 * (k1Y[ii] + 2.0 * k2Y[ii] + 2.0 * k3Y[ii] + k4Y[ii]);
+            v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0 * k2Z[ii] + 2.0 * k3Z[ii] + k4Z[ii]);
 
-            maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
+            maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
         }
     } else {
         // Use Adams-Bashforth to update the velocities
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            if (!isnan(lastAx[0])) {
-                v[ii][0] += dt*(1.5*k1X[ii] - 0.5*lastAx[ii]);
-                v[ii][1] += dt*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
-                v[ii][2] += dt*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
+            if (t > 0) {
+                v[ii][0] += dt * (1.5 * k1X[ii] - 0.5 * lastAx[ii]);
+                v[ii][1] += dt * (1.5 * k1Y[ii] - 0.5 * lastAy[ii]);
+                v[ii][2] += dt * (1.5 * k1Z[ii] - 0.5 * lastAz[ii]);
             } else {
-                v[ii][0] += dt*k1X[ii];
-                v[ii][1] += dt*k1Y[ii];
-                v[ii][2] += dt*k1Z[ii];
+                v[ii][0] += dt * k1X[ii];
+                v[ii][1] += dt * k1Y[ii];
+                v[ii][2] += dt * k1Z[ii];
             }
 
-            maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
+            maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
         }
     }
 
     for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-        x[ii][0] += dt*v[ii][0];
-        x[ii][1] += dt*v[ii][1];
-        x[ii][2] += dt*v[ii][2];
+        x[ii][0] += dt * v[ii][0];
+        x[ii][1] += dt * v[ii][1];
+        x[ii][2] += dt * v[ii][2];
 
         lastAx[ii] = k1X[ii];
         lastAy[ii] = k1Y[ii];
         lastAz[ii] = k1Z[ii];
     }
 
+    maxV = std::sqrt(maxV);
     t += dt;
 }
 

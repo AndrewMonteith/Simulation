@@ -20,6 +20,7 @@
 #include <limits>
 #include <iomanip>
 #include <cstring>
+#include <cmath>
 
 
 double t = 0;
@@ -213,9 +214,7 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
             forceY[j] -= Fy;
             forceZ[j] -= Fz;
         }
-    }
 
-    for (int ii = 0; ii < NumberOfBodies; ++ii) {
         aX[ii] = forceX[ii]/mass[ii];
         aY[ii] = forceY[ii]/mass[ii];
         aZ[ii] = forceZ[ii]/mass[ii];
@@ -226,16 +225,26 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 
 void updateBody() {
     // Buffers for Adam-Bashford:
-    MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
+    MAKE_BUFFER(lastAx);
+    MAKE_BUFFER(lastAy);
+    MAKE_BUFFER(lastAz);
 
     // Buffers for Runge-Kutta:
-    MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
-    MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
-    MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
-    MAKE_BUFFER(k4X); MAKE_BUFFER(k4Y); MAKE_BUFFER(k4Z);
+    MAKE_BUFFER(k1X);
+    MAKE_BUFFER(k1Y);
+    MAKE_BUFFER(k1Z);
+    MAKE_BUFFER(k2X);
+    MAKE_BUFFER(k2Y);
+    MAKE_BUFFER(k2Z);
+    MAKE_BUFFER(k3X);
+    MAKE_BUFFER(k3Y);
+    MAKE_BUFFER(k3Z);
+    MAKE_BUFFER(k4X);
+    MAKE_BUFFER(k4Y);
+    MAKE_BUFFER(k4Z);
 
     // Used to store temporary world for runge-kutta.
-    static auto** tmpx = new double*[NumberOfBodies]();
+    static auto **tmpx = new double *[NumberOfBodies]();
     if (t == 0) {
         for (int ii = 0; ii < NumberOfBodies; ++ii) {
             tmpx[ii] = new double[3]();
@@ -252,7 +261,7 @@ void updateBody() {
     minDx = std::numeric_limits<double>::max();
 
     // Timestep to use for this iteration.
-    const auto dt = shouldBeCareful ? timeStepSize/4 : timeStepSize;
+    const auto dt = shouldBeCareful ? timeStepSize / 4 : timeStepSize;
 
     // --- Update the velocities of all the particles.
     if (shouldBeCareful) {
@@ -261,17 +270,17 @@ void updateBody() {
 
         // Project current state ahead h/2
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            tmpx[ii][0] = x[ii][0] + dt/2 * (v[ii][0] + k1X[ii]);
-            tmpx[ii][1] = x[ii][1] + dt/2 * (v[ii][1] + k1Y[ii]);
-            tmpx[ii][2] = x[ii][2] + dt/2 * (v[ii][2] + k1Z[ii]);
+            tmpx[ii][0] = x[ii][0] + dt / 2 * (v[ii][0] + k1X[ii]);
+            tmpx[ii][1] = x[ii][1] + dt / 2 * (v[ii][1] + k1Y[ii]);
+            tmpx[ii][2] = x[ii][2] + dt / 2 * (v[ii][2] + k1Z[ii]);
         }
 
         computeAccelerations(tmpx, k2X, k2Y, k2Z);
 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            tmpx[ii][0] = x[ii][0] + dt/2 * (v[ii][0] + k2X[ii]);
-            tmpx[ii][1] = x[ii][1] + dt/2 * (v[ii][1] + k2Y[ii]);
-            tmpx[ii][2] = x[ii][2] + dt/2 * (v[ii][2] + k2Z[ii]);
+            tmpx[ii][0] = x[ii][0] + dt / 2 * (v[ii][0] + k2X[ii]);
+            tmpx[ii][1] = x[ii][1] + dt / 2 * (v[ii][1] + k2Y[ii]);
+            tmpx[ii][2] = x[ii][2] + dt / 2 * (v[ii][2] + k2Z[ii]);
         }
 
         computeAccelerations(tmpx, k3X, k3Y, k3Z);
@@ -284,43 +293,41 @@ void updateBody() {
 
         computeAccelerations(tmpx, k4X, k4Y, k4Z);
 
-        for (auto ii = 0 ; ii < NumberOfBodies; ++ii) {
-            v[ii][0] += dt / 6.0 * (k1X[ii] + 2.0*k2X[ii] + 2.0*k3X[ii] + k4X[ii]);
-            v[ii][1] += dt / 6.0 * (k1Y[ii] + 2.0*k2Y[ii] + 2.0*k3Y[ii] + k4Y[ii]);
-            v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0*k2Z[ii] + 2.0*k3Z[ii] + k4Z[ii]);
+        for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+            v[ii][0] += dt / 6.0 * (k1X[ii] + 2.0 * k2X[ii] + 2.0 * k3X[ii] + k4X[ii]);
+            v[ii][1] += dt / 6.0 * (k1Y[ii] + 2.0 * k2Y[ii] + 2.0 * k3Y[ii] + k4Y[ii]);
+            v[ii][2] += dt / 6.0 * (k1Z[ii] + 2.0 * k2Z[ii] + 2.0 * k3Z[ii] + k4Z[ii]);
 
-            maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
+            maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
         }
     } else {
         // Use Adams-Bashforth to update the velocities
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            if (!isnan(lastAx[0])) {
-                v[ii][0] += dt*(1.5*k1X[ii] - 0.5*lastAx[ii]);
-                v[ii][1] += dt*(1.5*k1Y[ii] - 0.5*lastAy[ii]);
-                v[ii][2] += dt*(1.5*k1Z[ii] - 0.5*lastAz[ii]);
+            if (!std::isnan(lastAx[0])) {
+                v[ii][0] += dt * (1.5 * k1X[ii] - 0.5 * lastAx[ii]);
+                v[ii][1] += dt * (1.5 * k1Y[ii] - 0.5 * lastAy[ii]);
+                v[ii][2] += dt * (1.5 * k1Z[ii] - 0.5 * lastAz[ii]);
             } else {
-                v[ii][0] += dt*k1X[ii];
-                v[ii][1] += dt*k1Y[ii];
-                v[ii][2] += dt*k1Z[ii];
+                v[ii][0] += dt * k1X[ii];
+                v[ii][1] += dt * k1Y[ii];
+                v[ii][2] += dt * k1Z[ii];
             }
 
-            maxV = std::max(maxV, std::sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
+            maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
         }
     }
 
     for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-        x[ii][0] += dt*v[ii][0];
-        x[ii][1] += dt*v[ii][1];
-        x[ii][2] += dt*v[ii][2];
+        x[ii][0] += dt * v[ii][0];
+        x[ii][1] += dt * v[ii][1];
+        x[ii][2] += dt * v[ii][2];
 
         lastAx[ii] = k1X[ii];
         lastAy[ii] = k1Y[ii];
         lastAz[ii] = k1Z[ii];
     }
-
-    t += dt;
 
     // --------- See if any particles have collided.
     const double collisionDistanceThreshold = 0.01 * 0.01;
@@ -331,31 +338,38 @@ void updateBody() {
             const double dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
             const double distSqrd = dx * dx + dy * dy + dz * dz;
 
-            if (distSqrd <= collisionDistanceThreshold) {
-                // Particles ii and j have collided.
-                // We merge particles ii and j into the slot ii in x, v, mass
-                const double M = mass[ii] + mass[j];
-
-                for (int k = 0; k < 3; ++k) {
-                    v[ii][k] = (mass[ii] * v[ii][k] + mass[j] * v[j][k]) / M;
-                    x[ii][k] = 0.5 * (x[ii][k] + x[j][k]);
-                }
-
-                lastAx[ii] = std::numeric_limits<double>::quiet_NaN();
-                mass[ii] = M;
-                maxV = std::max(maxV, sqrt(v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]));
-
-                if (j != NumberOfBodies - 1) {
-                    // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
-                    std::swap(mass[j], mass[NumberOfBodies - 1]);
-                    std::swap(v[j], v[NumberOfBodies - 1]);
-                    std::swap(x[j], x[NumberOfBodies - 1]);
-                }
-
-                NumberOfBodies -= 1;
+            if (distSqrd > collisionDistanceThreshold) {
+                continue;
             }
+
+            // Particles ii and j have collided.
+            // We merge particles ii and j into the slot ii in x, v, mass
+            const double M = mass[ii] + mass[j];
+            const auto ki = mass[ii]/M, kj = mass[j]/M;
+
+            v[ii][0] = ki*v[ii][0] + kj*v[j][0];
+            v[ii][1] = ki*v[ii][1] + kj*v[j][1];
+            v[ii][2] = ki*v[ii][2] + kj*v[j][2];
+
+            x[ii][0] = ki*x[ii][0] + kj*x[j][0];
+            x[ii][1] = ki*x[ii][1] + kj*x[j][1];
+            x[ii][2] = ki*x[ii][2] + kj*x[j][2];
+
+            lastAx[ii] = std::numeric_limits<double>::quiet_NaN();
+            mass[ii] = M;
+            maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+
+            // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
+            mass[j] = mass[NumberOfBodies-1];
+            v[j] = v[NumberOfBodies-1];
+            x[j] = x[NumberOfBodies-1];
+
+            --NumberOfBodies;
         }
     }
+
+    maxV = std::sqrt(maxV);
+    t += dt;
 
     if (NumberOfBodies == 1) {
         std::cout << x[0][0] << "," << x[0][1] << "," << x[0][2] << std::endl;
