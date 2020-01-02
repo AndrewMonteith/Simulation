@@ -265,41 +265,43 @@ void updateBody() {
                 maxV = std::max(maxV, v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2]*v[ii][2]);
             }
 
-            // Check for collisions
-            for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-                if (buckets[ii] != bucketNum) { continue; }
+            if (minDx <= 0.01) {
+                // Check for collisions
+                for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+                    if (buckets[ii] != bucketNum) { continue; }
 
-                for (int j = ii+1; j < NumberOfBodies; ++j) {
-                    if (ii == j) { continue; }
+                    for (int j = ii+1; j < NumberOfBodies; ++j) {
+                        if (ii == j) { continue; }
 
-                    const auto dx = x[ii][0]-x[j][0], dy = x[ii][1]-x[j][1], dz = x[ii][2]-x[j][2];
-                    const auto distSqrd = dx*dx + dy*dy + dz*dz;
+                        const auto dx = x[ii][0]-x[j][0], dy = x[ii][1]-x[j][1], dz = x[ii][2]-x[j][2];
+                        const auto distSqrd = dx*dx + dy*dy + dz*dz;
 
-                    if (distSqrd > 0.01*0.01) {
-                        continue;
+                        if (distSqrd > 0.01*0.01) {
+                            continue;
+                        }
+
+                        // Particles ii and j have collided.
+                        // We merge particles ii and j into the slot ii in x, v, mass
+                        const auto M = mass[ii] + mass[j];
+                        const auto ki = mass[ii]/M, kj = mass[j]/M;
+
+                        v[ii][0] = v[ii][0]*ki + v[j][0]*kj;
+                        v[ii][1] = v[ii][1]*ki + v[j][1]*kj;
+                        v[ii][2] = v[ii][2]*ki + v[j][2]*kj;
+
+                        x[ii][0] = x[ii][0]*ki + x[j][0]*kj;
+                        x[ii][1] = x[ii][1]*ki + x[j][1]*kj;
+                        x[ii][2] = x[ii][2]*ki + x[j][2]*kj;
+
+                        mass[ii] = M;
+
+                        mass[j] = mass[NumberOfBodies-1];
+                        v[j] = v[NumberOfBodies-1];
+                        x[j] = x[NumberOfBodies-1];
+                        buckets[j] = buckets[NumberOfBodies-1];
+
+                        --NumberOfBodies;
                     }
-
-                    // Particles ii and j have collided.
-                    // We merge particles ii and j into the slot ii in x, v, mass
-                    const auto M = mass[ii] + mass[j];
-                    const auto ki = mass[ii]/M, kj = mass[j]/M;
-
-		    v[ii][0] = v[ii][0]*ki + v[j][0]*kj;
-		    v[ii][1] = v[ii][1]*ki + v[j][1]*kj;
-		    v[ii][2] = v[ii][2]*ki + v[j][2]*kj;
-
-		    x[ii][0] = x[ii][0]*ki + x[j][0]*kj;
-		    x[ii][1] = x[ii][1]*ki + x[j][1]*kj;
-		    x[ii][2] = x[ii][2]*ki + x[j][2]*kj;
-
-                    mass[ii] = M;
-
-                    mass[j] = mass[NumberOfBodies-1];
-                    v[j] = v[NumberOfBodies-1];
-                    x[j] = x[NumberOfBodies-1];
-                    buckets[j] = buckets[NumberOfBodies-1];
-
-                    --NumberOfBodies;
                 }
             }
         }

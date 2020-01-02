@@ -249,9 +249,6 @@ void updateBody() {
         for (int ii = 0; ii < NumberOfBodies; ++ii) {
             tmpx[ii] = new double[3]();
         }
-
-        // Mark last acceleration as not known
-        lastAx[0] = std::numeric_limits<double>::quiet_NaN();
     }
 
     // Do we need to use a more accurate scheme? (runge-kutta)
@@ -304,16 +301,16 @@ void updateBody() {
         // Use Adams-Bashforth to update the velocities
         computeAccelerations(x, k1X, k1Y, k1Z);
 
+        if (t == 0) {
+            std::memcpy(lastAx, k1X, sizeof(double)*NumberOfBodies);
+            std::memcpy(lastAy, k1Y, sizeof(double)*NumberOfBodies);
+            std::memcpy(lastAz, k1Z, sizeof(double)*NumberOfBodies);
+        }
+
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-            if (!std::isnan(lastAx[0])) {
-                v[ii][0] += dt * (1.5 * k1X[ii] - 0.5 * lastAx[ii]);
-                v[ii][1] += dt * (1.5 * k1Y[ii] - 0.5 * lastAy[ii]);
-                v[ii][2] += dt * (1.5 * k1Z[ii] - 0.5 * lastAz[ii]);
-            } else {
-                v[ii][0] += dt * k1X[ii];
-                v[ii][1] += dt * k1Y[ii];
-                v[ii][2] += dt * k1Z[ii];
-            }
+            v[ii][0] += dt * (1.5 * k1X[ii] - 0.5 * lastAx[ii]);
+            v[ii][1] += dt * (1.5 * k1Y[ii] - 0.5 * lastAy[ii]);
+            v[ii][2] += dt * (1.5 * k1Z[ii] - 0.5 * lastAz[ii]);
 
             maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
         }
@@ -323,48 +320,50 @@ void updateBody() {
         x[ii][0] += dt * v[ii][0];
         x[ii][1] += dt * v[ii][1];
         x[ii][2] += dt * v[ii][2];
-
-        lastAx[ii] = k1X[ii];
-        lastAy[ii] = k1Y[ii];
-        lastAz[ii] = k1Z[ii];
     }
+
+    std::memcpy(lastAx, k1X, sizeof(double)*NumberOfBodies);
+    std::memcpy(lastAy, k1Y, sizeof(double)*NumberOfBodies);
+    std::memcpy(lastAz, k1Z, sizeof(double)*NumberOfBodies);
 
     // --------- See if any particles have collided.
     const double collisionDistanceThreshold = 0.01 * 0.01;
 
-    // Check if an particles are inside of each other.
-    for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-        for (auto j = ii + 1; j < NumberOfBodies; ++j) {
-            const double dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
-            const double distSqrd = dx * dx + dy * dy + dz * dz;
+    if (minDx <= 0.01) {
+        // Check which particles are inside of each other.
+        for (auto ii = 0; ii < NumberOfBodies; ++ii) {
+            for (auto j = ii + 1; j < NumberOfBodies; ++j) {
+                const double dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
+                const double distSqrd = dx * dx + dy * dy + dz * dz;
 
-            if (distSqrd > collisionDistanceThreshold) {
-                continue;
+                if (distSqrd > collisionDistanceThreshold) {
+                    continue;
+                }
+
+                // Particles ii and j have collided.
+                // We merge particles ii and j into the slot ii in x, v, mass
+                const double M = mass[ii] + mass[j];
+                const auto ki = mass[ii]/M, kj = mass[j]/M;
+
+                v[ii][0] = ki*v[ii][0] + kj*v[j][0];
+                v[ii][1] = ki*v[ii][1] + kj*v[j][1];
+                v[ii][2] = ki*v[ii][2] + kj*v[j][2];
+
+                x[ii][0] = ki*x[ii][0] + kj*x[j][0];
+                x[ii][1] = ki*x[ii][1] + kj*x[j][1];
+                x[ii][2] = ki*x[ii][2] + kj*x[j][2];
+
+                lastAx[ii] = std::numeric_limits<double>::quiet_NaN();
+                mass[ii] = M;
+                maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+
+                // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
+                mass[j] = mass[NumberOfBodies-1];
+                v[j] = v[NumberOfBodies-1];
+                x[j] = x[NumberOfBodies-1];
+
+                --NumberOfBodies;
             }
-
-            // Particles ii and j have collided.
-            // We merge particles ii and j into the slot ii in x, v, mass
-            const double M = mass[ii] + mass[j];
-            const auto ki = mass[ii]/M, kj = mass[j]/M;
-
-            v[ii][0] = ki*v[ii][0] + kj*v[j][0];
-            v[ii][1] = ki*v[ii][1] + kj*v[j][1];
-            v[ii][2] = ki*v[ii][2] + kj*v[j][2];
-
-            x[ii][0] = ki*x[ii][0] + kj*x[j][0];
-            x[ii][1] = ki*x[ii][1] + kj*x[j][1];
-            x[ii][2] = ki*x[ii][2] + kj*x[j][2];
-
-            lastAx[ii] = std::numeric_limits<double>::quiet_NaN();
-            mass[ii] = M;
-            maxV = std::max(maxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
-
-            // We then swap the now dead information at j with the info at NumberOfBodies-1 in x, v, mass
-            mass[j] = mass[NumberOfBodies-1];
-            v[j] = v[NumberOfBodies-1];
-            x[j] = x[NumberOfBodies-1];
-
-            --NumberOfBodies;
         }
     }
 
