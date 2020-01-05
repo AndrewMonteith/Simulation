@@ -21,6 +21,7 @@
 #include <iomanip>
 #include <cstring>
 #include <cmath>
+#include <omp.h>
 
 
 double t = 0;
@@ -214,9 +215,9 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
             minDistance = std::min(minDx, distance);                                         
         }                                                                                    
                                                      
-            aX[ii] = Fx / m;                                                                     
-            aY[ii] = Fy / m;                                                                     
-            aZ[ii] = Fz / m;                                                                     
+        aX[ii] = Fx / m;                                                                     
+        aY[ii] = Fy / m;                                                                     
+        aZ[ii] = Fz / m;                                                                     
     }                                                                                        
                                                                                                  
     if (pos == x) {                                                                              
@@ -257,6 +258,7 @@ void updateBody() {
         computeAccelerations(x, k1X, k1Y, k1Z);
 
         // Project current state ahead h/2
+
         #pragma omp parallel for
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
             tmpx[ii][0] = x[ii][0] + dt / 2 * (v[ii][0] + k1X[ii]);
@@ -286,7 +288,7 @@ void updateBody() {
 
         double newMaxV = 0;
 
-        #pragma omp parallel for reduction(max:newMaxV) 
+         #pragma omp parallel for reduction(max:newMaxV) 
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
             v[ii][0] += dt / 6.0 * (k1X[ii] + 2.0 * k2X[ii] + 2.0 * k3X[ii] + k4X[ii]);
             v[ii][1] += dt / 6.0 * (k1Y[ii] + 2.0 * k2Y[ii] + 2.0 * k3Y[ii] + k4Y[ii]);
@@ -310,17 +312,17 @@ void updateBody() {
 
         #pragma omp parallel for reduction(max:newMaxV)
         for (auto ii = 0; ii < NumberOfBodies; ++ii) {
-                v[ii][0] += dt * (1.5 * k1X[ii] - 0.5 * lastAx[ii]);
-                v[ii][1] += dt * (1.5 * k1Y[ii] - 0.5 * lastAy[ii]);
-                v[ii][2] += dt * (1.5 * k1Z[ii] - 0.5 * lastAz[ii]);
+            v[ii][0] += dt * (1.5 * k1X[ii] - 0.5 * lastAx[ii]);
+            v[ii][1] += dt * (1.5 * k1Y[ii] - 0.5 * lastAy[ii]);
+            v[ii][2] += dt * (1.5 * k1Z[ii] - 0.5 * lastAz[ii]);
 
-                newMaxV = std::max(newMaxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
-            }
+            newMaxV = std::max(newMaxV, v[ii][0] * v[ii][0] + v[ii][1] * v[ii][1] + v[ii][2] * v[ii][2]);
+        }
 
-        newMaxV = std::sqrt(newMaxV);
+        maxV = std::sqrt(newMaxV);
     }
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (auto ii = 0; ii < NumberOfBodies; ++ii) {
         x[ii][0] += dt * v[ii][0];
         x[ii][1] += dt * v[ii][1];
