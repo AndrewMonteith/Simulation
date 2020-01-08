@@ -225,23 +225,13 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
 
 void updateBody() {
     // Buffers for Adam-Bashford:
-    MAKE_BUFFER(lastAx);
-    MAKE_BUFFER(lastAy);
-    MAKE_BUFFER(lastAz);
+    MAKE_BUFFER(lastAx); MAKE_BUFFER(lastAy); MAKE_BUFFER(lastAz);
 
     // Buffers for Runge-Kutta:
-    MAKE_BUFFER(k1X);
-    MAKE_BUFFER(k1Y);
-    MAKE_BUFFER(k1Z);
-    MAKE_BUFFER(k2X);
-    MAKE_BUFFER(k2Y);
-    MAKE_BUFFER(k2Z);
-    MAKE_BUFFER(k3X);
-    MAKE_BUFFER(k3Y);
-    MAKE_BUFFER(k3Z);
-    MAKE_BUFFER(k4X);
-    MAKE_BUFFER(k4Y);
-    MAKE_BUFFER(k4Z);
+    MAKE_BUFFER(k1X); MAKE_BUFFER(k1Y); MAKE_BUFFER(k1Z);
+    MAKE_BUFFER(k2X); MAKE_BUFFER(k2Y); MAKE_BUFFER(k2Z);
+    MAKE_BUFFER(k3X); MAKE_BUFFER(k3Y); MAKE_BUFFER(k3Z);
+    MAKE_BUFFER(k4X); MAKE_BUFFER(k4Y); MAKE_BUFFER(k4Z);
 
     // Used to store temporary world for runge-kutta.
     static auto **tmpx = new double *[NumberOfBodies]();
@@ -442,8 +432,6 @@ int main(int argc, char **argv) {
     }
 
     printParaviewSnapshot();
-
-    closeParaviewVideoFile();
 
     return 0;
 }

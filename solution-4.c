@@ -212,14 +212,14 @@ inline void computeAccelerations(double** pos, double aX[], double aY[], double 
             Fy += k*dy;                                                                      
             Fz += k*dz;                                                                      
                                                      
-            minDistance = std::min(minDx, distance);                                         
+            minDistance = std::min(minDistance, distance);                                         
         }                                                                                    
                                                      
         aX[ii] = Fx / m;                                                                     
         aY[ii] = Fy / m;                                                                     
         aZ[ii] = Fz / m;                                                                     
     }                                                                                        
-                                                                                                 
+
     if (pos == x) {                                                                              
         minDx = std::min(minDx, minDistance);                                                    
     }                                                                                            
@@ -404,8 +404,6 @@ int main(int argc, char **argv) {
     }
 
     printParaviewSnapshot();
-
-    closeParaviewVideoFile();
 
     return 0;
 }

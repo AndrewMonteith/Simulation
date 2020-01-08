@@ -386,8 +386,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    printParaviewSnapshot();
-
     closeParaviewVideoFile();
 
     return 0;

@@ -199,14 +199,16 @@ void printParaviewSnapshot() {
  * This is the only operation you are allowed to change in the assignment.
  */
 
-#define DELETE_BUFFER(name) delete[] name;
-
 void updateBody() {
-    auto *forceX = new double[NumberOfBodies]();
-    auto *forceY = new double[NumberOfBodies]();
-    auto *forceZ = new double[NumberOfBodies]();
+    /*
+        For step 3 I choose to change back to the explicit euler method since implementing runge-kutta with
+        buckets would have been quite difficult.
+    */
+    auto *aX = new double[NumberOfBodies]();
+    auto *aY = new double[NumberOfBodies]();
+    auto *aZ = new double[NumberOfBodies]();
 
-    const double vBucket = 130.0 / NumberOfBuckets;
+    const double vBucket = maxV / NumberOfBuckets;
     for (auto ii = 0; ii < NumberOfBodies; ++ii) {
         buckets[ii] = 0;
         const auto vi = v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2]*v[ii][2];
@@ -231,7 +233,7 @@ void updateBody() {
             for (auto ii = 0; ii < NumberOfBodies; ++ii) {
                 if (buckets[ii] != bucketNum) { continue; }
 
-                forceX[ii] = 0; forceY[ii] = 0; forceZ[ii] = 0;
+                aX[ii] = 0; aY[ii] = 0; aZ[ii] = 0;
 
                 for (auto j = 0; j < NumberOfBodies; ++j) {
                     if (ii == j) { continue; }
@@ -239,11 +241,11 @@ void updateBody() {
                     const auto dx = x[j][0] - x[ii][0], dy = x[j][1] - x[ii][1], dz = x[j][2] - x[ii][2];
                     const auto distSqrd = dx*dx + dy*dy + dz*dz, distance = std::sqrt(distSqrd);
 
-                    const auto k = mass[ii] * mass[j] / (distSqrd * distance);
+                    const auto k = mass[j] / (distSqrd * distance);
 
-                    forceX[ii] += k*dx;
-                    forceY[ii] += k*dy;
-                    forceZ[ii] += k*dz;
+                    aX[ii] += k*dx;
+                    aY[ii] += k*dy;
+                    aZ[ii] += k*dz;
 
                     minDx = std::min(minDx, distance);
                 }
@@ -257,10 +259,9 @@ void updateBody() {
                 x[ii][1] += dt*v[ii][1];
                 x[ii][2] += dt*v[ii][2];
 
-                const auto k = dt/mass[ii];
-                v[ii][0] += k*forceX[ii];
-                v[ii][1] += k*forceY[ii];
-                v[ii][2] += k*forceZ[ii];
+                v[ii][0] += dt*aX[ii];
+                v[ii][1] += dt*aY[ii];
+                v[ii][2] += dt*aZ[ii];
 
                 maxV = std::max(maxV, v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2]*v[ii][2]);
             }
@@ -307,9 +308,9 @@ void updateBody() {
         }
     }
 
-    delete[] forceX;
-    delete[] forceY;
-    delete[] forceZ;
+    delete[] aX;
+    delete[] aY;
+    delete[] aZ;
 
     maxV = std::sqrt(maxV);
 
@@ -383,8 +384,6 @@ int main(int argc, char **argv) {
     }
 
     printParaviewSnapshot();
-
-    closeParaviewVideoFile();
 
     return 0;
 }
