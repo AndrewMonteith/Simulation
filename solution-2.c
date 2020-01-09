@@ -362,6 +362,8 @@ void updateBody() {
 
     if (NumberOfBodies == 1) {
         std::cout << x[0][0] << "," << x[0][1] << "," << x[0][2] << std::endl;
+        t = tFinal+1;
+        tPlot = t+1;
     }
 }
 
@@ -414,7 +416,7 @@ int main(int argc, char **argv) {
     }
 
     int timeStepCounter = 0;
-    while (t <= tFinal && NumberOfBodies > 1) {
+    while (t <= tFinal) {
         updateBody();
         timeStepCounter++;
         if (t >= tPlot) {

@@ -198,9 +198,6 @@ void printParaviewSnapshot() {
 /**
  * This is the only operation you are allowed to change in the assignment.
  */
-
-#define DELETE_BUFFER(name) delete[] name;
-
 void updateBody() {
     auto *aX = new double[NumberOfBodies]();
     auto *aY = new double[NumberOfBodies]();
@@ -213,7 +210,7 @@ void updateBody() {
         buckets[ii] = 0;
         const auto vi = v[ii][0]*v[ii][0] + v[ii][1]*v[ii][1] + v[ii][2]*v[ii][2];
 
-        for (int j = NumberOfBodies - 1; j >= 1; --j) {
+        for (int j = NumberOfBuckets - 1; j >= 1; --j) {
             if (vi >= j * vBucket * j * vBucket) {
                 buckets[ii] = j;
                 break;
@@ -323,6 +320,12 @@ void updateBody() {
     maxV = std::sqrt(maxV);
 
     t += timeStepSize;
+
+    if (NumberOfBodies == 1) {
+        std::cout << x[0][0] << "," << x[0][1] << "," << x[0][2] << std::endl;
+        t = tFinal+1;
+        tPlot = t+1;
+    }
 }
 
 
@@ -374,7 +377,7 @@ int main(int argc, char **argv) {
     }
 
     int timeStepCounter = 0;
-    while (t <= tFinal && NumberOfBodies > 1) {
+    while (t <= tFinal) {
         updateBody();
         timeStepCounter++;
         if (t >= tPlot) {
